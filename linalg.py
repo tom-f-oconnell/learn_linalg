@@ -14,7 +14,7 @@ def norm(v):
 
 def angle(v1, v2):
     # cos(alpha) = dot(v1,v2) / (norm(v1)*norm(v2))
-    return np.arccos(dot(v1,v2) / (norm(v1) * norm(v2))
+    return np.arccos(dot(v1,v2) / (norm(v1) * norm(v2)))
 
 
 def orthogonal(v1, v2):
@@ -63,7 +63,7 @@ def indepenent(vectors, method='row_reduce'):
     if method == 'det':
         # forming matrix by taking vectors as columns
         # TODO does it matter?
-        M = np.zeros(len(vectors[0]), len(vectors)))
+        M = np.zeros(len(vectors[0]), len(vectors))
         for i, v in enumerate(vectors):
             M[:,i] = v
         return det(M) == 0
@@ -97,10 +97,14 @@ def leading_coefficient_idx(v):
     """
     Doesn't check whether v is a zero vector.
     """
-    return np.argmax(v.nonzero())
+    # better way to do this?
+    # it currently relies on all True values being tied for the argmax, so the first is returned
+    #print('v', v)
+    #print(np.argmax(np.abs(v) > 1e-6))
+    return np.argmax(np.abs(v) > 1e-6)
 
 
-def in_row_echelon_form(A):
+def in_row_echelon_form(A, check_reduced=False):
     """
     Returns true if in A:
         -all nonzero rows are above all zero rows
@@ -116,32 +120,46 @@ def in_row_echelon_form(A):
     zero_row = np.zeros(A.shape[1])
     saw_zero_row = False
 
-    last_lead_index = 0
+    last_lead_index = -1
 
     for row in A:
-        if np.isclose(row, zero_row):
+        #print('row', row)
+        if np.allclose(row, zero_row):
+            #print('zero')
             saw_zero_row = True
 
-        # since we require all nonzero rows to be above all zero rows
-        else if saw_zero_row:
+        # since this is an else, we already know the current row is nonzero
+        # and we require all nonzero rows to be above all zero rows
+        elif saw_zero_row:
+            #print('previously saw zero, now nonzero')
             return False
 
         else:
             # should return index of first nonzero element
             idx = leading_coefficient_idx(row)
-            if idx >= last_lead_index:
+            #print('idx', idx, 'last_lead', last_lead_index)
+            if idx <= last_lead_index:
                 return False
             last_lead_index = idx
+
+            # more efficient way?
+            if check_reduced:
+                '''
+                print('checking reduced')
+                print(np.isclose(row[idx], 1))
+                print(np.isclose(np.sum(A[:,idx]), 1))
+                '''
+                if not (np.isclose(row[idx], 1) and np.isclose(np.sum(A[:,idx]), 1)):
+                    return False
 
     return True
 
 
 def in_reduced_echelon_form(A):
-    # TODO can only check by checking fixed point of elimination?
-    pass
+    return in_row_echelon_form(A, check_reduced=True)
 
 
-def gaussian_elimination(A):
+def gaussian_elimination(A, stop='gauss'):
     """
     Returns the row echelon form of A.
 
@@ -168,6 +186,10 @@ def gaussian_elimination(A):
     TODO where n is number of elements or one dimension of (square?) matrix?
     -sometimes unstable, but generally not (for some classes of matrices at least)
     """
+
+    if stop not in {'gauss', 'gauss-jordan'}:
+        raise ValueError('invalid stopping condition')
+    
     # TODO can i just sort them so leading coefficient indices are <= row below and
     # proceed without resorting, or is it sometimes necessary to resort? maybe
     # depends on other choices?
@@ -180,43 +202,99 @@ def gaussian_elimination(A):
         pairs = enumerate_leads(M)
         # sort output places keys from small to big
         sorted_row_indices = [x for x, y in sorted(pairs, key=lambda x: x[1])]
+        '''
+        print(pairs)
+        print(sorted_row_indices)
+        print(M)
+        print(M[sorted_row_indices, :])
+        '''
         return M[sorted_row_indices, :]
+    
+    zero_row = np.zeros(A.shape[1])
+    def is_zeros(row):
+        return np.allclose(row, zero_row)
 
     A = sort_rows_by_leading_index(A)
     curr_row_idx = 0
-    curr_lead = leading_coefficient_idx(A[curr_row_idx])
 
     # TODO stopping condition for reduced form?
     # this will return after reaching row echelon form
+    # TODO another stop option @ 1s in lead, but not beyond?
+    # TODO need to ignore some cols when going to reduced form, for some instances? (inversion)
+    # TODO probably need to change logic in both loops for gauss-jordan
     while curr_row_idx < A.shape[0]:
+        #print('outer')
+        curr_lead = leading_coefficient_idx(A[curr_row_idx])
+        #print('curr_row_idx', curr_row_idx)
+        #print('curr_lead', curr_lead)
+
         # find one row with same index for its leading coefficient
         # if none exist, continue to next row
-        other_leads = enumerate_leads(A[curr_idx + 1:, :])
+        other_leads = enumerate_leads(A[curr_row_idx + 1:, :])
         # TODO assumes we were sorted going into this step (because idxs > than curr_lead ignored)
         # safe?
-        ties = [i, l for i, l in other_leads if l == curr_lead]
+        #print('other_leads', other_leads)
+        ties = [i + 1 + curr_row_idx for i, l in other_leads if l == curr_lead]
+        #print('ties', ties)
+        #print(curr_lead)
         
+        # make it so no leading coefficients have the same index
         while len(ties) != 0:
+            #print('inner')
             # TODO pops from end by default. OK?
-            i, l = ties.pop()
+            i = ties.pop()
 
             # TODO will i sometimes screw myself if i only subtract a multiple of the current row 
             # from the tied row? (rather than a row beneath)
-            scale = l / A[curr_row_idx, curr_lead]
+            # TODO A[curr_row_idx, curr_lead] should never be zero...
+            #print(A[i, curr_lead], A[curr_row_idx, curr_lead])
+            scale = A[i, curr_lead] / A[curr_row_idx, curr_lead]
             A[i,:] = A[i,:] - scale * A[curr_row_idx, :]
+            #print('i:', i, 'l:', A[i,curr_lead], 'scale', scale, \
+            #        'scaled_curr', scale*A[curr_row_idx, curr_lead])
+
+            #print('in inner', A)
 
         # TODO test. need to resort (and only / at least here)?
-        A[curr_idx + 1, :] = sort_rows_by_leading_index(A[curr_idx + 1, :])
+        #print('after inner', A)
+        A[curr_row_idx + 1:, :] = sort_rows_by_leading_index(A[curr_row_idx + 1:, :])
+        #print('after resorting', A)
         # i guess this doesn't really need to be a while then?
         curr_row_idx += 1
 
-    # TODO test
+    # TODO are extra steps generally applied after doing the above?
+    # or could better choices be made above if this is the end goal?
+    if stop == 'gauss-jordan':
+        lead_indices = []
+        # make all leading coefficients 1
+        # by dividing the rows by themselves
+        for i in range(A.shape[0]):
+            row = A[i,:]
+            # assumes sorted s.t. all zero rows beneath all nonzero rows
+            if is_zeros(row):
+                break
+            lead_idx = leading_coefficient_idx(row)
+            lead_indices.append((i,lead_idx))
+            leading_coeff = A[i, lead_idx]
+            A[i,:] = row / leading_coeff
+
+        # make all other entries in columns with leading indices zero
+        # by subtracting (multiples of) the row with the lead from the others
+        for i, j in lead_indices:
+            lead = A[i,j]
+            for i_other in range(A.shape[0]):
+                if i != i_other and not np.isclose(A[i_other,j], 0):
+                    scale = A[i_other,j] / A[i,j]
+                    A[i_other,:] = A[i_other,:] - scale * A[i,:]
+
     return A
 
 
 def rank(A):
     # TODO also accept a sequence of matrices and compute without multiplying
     # do this for other operations? can i do this in general for any?
+
+    # TODO use elimination to calculate this (one way)
     pass
 
 
@@ -266,12 +344,29 @@ def trace(A):
 
 
 def det(A, method='elimination'):
+    # can be O(n^3)
     if method == 'elimination':
+        # TODO
+        pass
 
+    # computationally much worse
     elif method == 'elementary':
+        pass
 
     else:
         raise ValueError('method not valid')
+
+
+def solve(A, b):
+    """
+    Returns the x from Ax=b
+    """
+    # make augmented
+    Ab = np.concatenate((A, b), axis=1)
+    # TODO or not gauss-jordan but use "back-substitution"?
+    S = gaussian_elimination(Ab, stop='gauss-jordan')
+    x = S[:,-1]
+    return x
 
 
 def characteristic(A):
