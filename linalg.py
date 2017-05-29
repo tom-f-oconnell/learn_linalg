@@ -159,6 +159,10 @@ def in_reduced_echelon_form(A):
     return in_row_echelon_form(A, check_reduced=True)
 
 
+# TODO make a function to generate the matrices corresponding to the elementary row operations in
+# the elimination, for fun
+
+
 def gaussian_elimination(A, stop='gauss'):
     """
     Returns the row echelon form of A.
@@ -290,12 +294,42 @@ def gaussian_elimination(A, stop='gauss'):
     return A
 
 
+def inv(A):
+    """
+    Returns the inverse of A, if it is invertible, otherwise raises error.
+    """
+    # TODO left OR right for non-square matrices? exist? can use same alg?
+    if A.shape[0] != A.shape[1]:
+        raise ValueError('can not* invert non-square matrix')
+
+    n = A.shape[0]
+    I = np.eye(n)
+    AI = np.concatenate((A, I), axis=1)
+    R = gaussian_elimination(A, stop='gauss-jordan')
+    Ared = R[:,:n]
+    Ainv = R[:,n:]
+
+    # TODO should it have failed earlier?
+    if rank_of_reduced(Ared) < n:
+        raise ValueError('A seems not to have been full-rank => not invertible')
+
+    return Ainv
+
+
+def rank_of_reduced(A):
+    # rank is now the # "pivots" = # nonzero rows = # "basic columns"
+    rk = 0
+    for row in R:
+        rk += 1 - np.allclose(row, 0)
+    return rk
+
+
 def rank(A):
     # TODO also accept a sequence of matrices and compute without multiplying
     # do this for other operations? can i do this in general for any?
-
     # TODO use elimination to calculate this (one way)
-    pass
+    R = gaussian_elimination(A)
+    return rank_of_reduced(A)
 
 
 def trace(A):
@@ -355,6 +389,10 @@ def det(A, method='elimination'):
 
     else:
         raise ValueError('method not valid')
+
+
+# TODO calculate eigenvectors / values
+# TODO svd / pca
 
 
 def solve(A, b):
