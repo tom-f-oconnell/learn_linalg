@@ -397,14 +397,16 @@ def det(A, method='elimination'):
          (probably true for zero as well?)
         -adding a SCALAR MULTIPLE of one row to another -> (det -> det) (no change)
         """
-        # product of scalars by which the determinant has been multiplied
-        d = 1
-        B = gaussian_elimination(B, det_changes=True)
-
         # TODO see proofs for why the determinant changes by these rules
 
+        # product of scalars by which the determinant has been multiplied
+        B, d = gaussian_elimination(B, det_change_factor=True)
+        diag_prod = 1
+        for i in range(n):
+            diag_prod *= B[i,i]
+        return diag_prod / d
 
-    # computationally much worse (n! summands)
+    # computationally much worse (n! summands) (which alg requires 2^n as Wiki claims?)
     elif method == 'leibniz':
         # TODO how to calculate signature?
         def signature(p):
