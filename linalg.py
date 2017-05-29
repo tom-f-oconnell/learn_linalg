@@ -1,5 +1,6 @@
 
 import numpy as np
+import itertools
 
 # using numpy arrays for matrices
 
@@ -163,7 +164,7 @@ def in_reduced_echelon_form(A):
 # the elimination, for fun
 
 
-def gaussian_elimination(A, stop='gauss'):
+def gaussian_elimination(A, stop='gauss', det_change_factor=False):
     """
     Returns the row echelon form of A.
 
@@ -218,6 +219,10 @@ def gaussian_elimination(A, stop='gauss'):
     def is_zeros(row):
         return np.allclose(row, zero_row)
 
+    if det_change_factor:
+        d = 1
+
+    # TODO how to get det change (-1 or 1) from this? count # of rows in same place?
     A = sort_rows_by_leading_index(A)
     curr_row_idx = 0
 
@@ -378,14 +383,42 @@ def trace(A):
 
 
 def det(A, method='elimination'):
-    # can be O(n^3)
-    if method == 'elimination':
-        # TODO
-        pass
+    if A.shape[0] != A.shape[1]:
+        raise ValueError('determinant not defined for non-square matrices')
+    n = A.shape[0]
 
-    # computationally much worse
-    elif method == 'elementary':
-        pass
+    # can be O(n^3) (same n?)
+    if method == 'elimination':
+        """
+        elementary row operations on determinant:
+        -swapping 2 rows -> (det -> det * -1)
+         why?
+        -multiplying a row by a nonzero scalar c, -> (det -> det * c)
+         (probably true for zero as well?)
+        -adding a SCALAR MULTIPLE of one row to another -> (det -> det) (no change)
+        """
+        # product of scalars by which the determinant has been multiplied
+        d = 1
+        B = gaussian_elimination(B, det_changes=True)
+
+        # TODO see proofs for why the determinant changes by these rules
+
+
+    # computationally much worse (n! summands)
+    elif method == 'leibniz':
+        # TODO how to calculate signature?
+        def signature(p):
+            pass
+
+        # "sum is computed over all permutations [sigma] of the set {1,2,...,n}"
+        # "set of all such permutations = the symmetric group on n elements"
+        acc = 0
+        for sigma in itertools.permutations(range(n)):
+            prod = 1
+            for i in range(n):
+                prod *= A[i,sigma[i]]
+            acc += signature(sigma) * prod
+        return acc
 
     else:
         raise ValueError('method not valid')
